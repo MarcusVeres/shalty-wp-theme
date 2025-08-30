@@ -126,3 +126,11 @@ function hello_child_get_module_status($module_slug) {
 function hello_child_is_module_loaded($module_slug) {
     return hello_child_get_module_status($module_slug) === 'active';
 }
+
+// -----------------------------------
+
+/* 
+ * INTEGRATE MODULES 
+ */
+
+require_once get_stylesheet_directory() . '/inc/modules/shaltazar-post/index.php';
