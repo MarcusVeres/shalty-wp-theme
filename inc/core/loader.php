@@ -13,6 +13,7 @@ if (!defined('ABSPATH')) {
  */
 function hello_child_get_modules() {
     return array(
+
         'scroll-offset' => array(
             'name' => 'Scroll Offset',
             'description' => 'Prevents fixed headers from covering content when users click anchor links',
@@ -20,6 +21,15 @@ function hello_child_get_modules() {
             'enabled' => true, // Set to false to disable this module
             'requires' => array(), // Plugin dependencies
         ),
+
+        'content-automation' => array(
+            'name' => 'Content Automation',
+            'description' => 'Automated Google Docs content fetching and YouTube thumbnail processing',
+            'files' => array('index.php'),
+            'enabled' => true,
+            'requires' => array('acf'),
+        ),
+
         // Future modules can be added here
         // 'woocommerce-extras' => array(
         //     'name' => 'WooCommerce Extras',
@@ -133,4 +143,5 @@ function hello_child_is_module_loaded($module_slug) {
  * INTEGRATE MODULES 
  */
 
+// Shaltazar Post
 require_once get_stylesheet_directory() . '/inc/modules/shaltazar-post/index.php';
