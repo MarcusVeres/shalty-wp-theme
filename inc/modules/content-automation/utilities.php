@@ -131,25 +131,6 @@ function content_automation_http_request($url, $args = array()) {
 }
 
 /**
- * Sanitize content from external sources
- */
-function content_automation_sanitize_content($content) {
-    // Remove any potentially harmful content
-    $content = wp_kses_post($content);
-    
-    // Normalize line breaks
-    $content = preg_replace('/\r\n|\r/', "\n", $content);
-    
-    // Remove excessive whitespace but preserve intentional spacing
-    $content = preg_replace('/\n{3,}/', "\n\n", $content);
-    
-    // Clean up any weird unicode characters
-    $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
-    
-    return trim($content);
-}
-
-/**
  * Check if batch processing is currently running
  */
 function is_batch_processing_active() {

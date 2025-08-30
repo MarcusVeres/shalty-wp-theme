@@ -1,6 +1,6 @@
 <?php
 /**
- * Google Docs Content Fetcher
+ * Google Docs Content Fetcher - CORRECTED VERSION
  * 
  * IMPORTANT: Direct scraping of Google Docs edit URLs requires authentication.
  * This implementation provides multiple approaches for accessing Google Docs content.
@@ -88,8 +88,8 @@ function fetch_google_docs_content($post_id, $force_update = false) {
         );
     }
     
-    // Sanitize and clean the content
-    $cleaned_content = content_automation_sanitize_content($content);
+    // Sanitize and clean the content - IMPROVED VERSION
+    $cleaned_content = content_automation_sanitize_html_content($content, $method_used);
     
     if (empty($cleaned_content)) {
         $error = "Content was fetched but became empty after sanitization";
@@ -145,7 +145,7 @@ function fetch_docs_as_html_export($docs_id) {
         return $response;
     }
     
-    // Parse HTML and extract content
+    // Parse HTML and extract content - IMPROVED VERSION
     $html = $response['body'];
     
     // Remove Google's extra HTML wrapper and extract main content
@@ -186,6 +186,9 @@ function fetch_docs_as_text_export($docs_id) {
         );
     }
     
+    // Convert plain text to basic HTML with paragraphs
+    $content = wpautop($content);
+    
     return array(
         'success' => true,
         'content' => $content
@@ -206,7 +209,7 @@ function fetch_docs_via_rss($docs_id) {
 }
 
 /**
- * Extract readable content from Google Docs HTML
+ * Extract readable content from Google Docs HTML - COMPLETELY REWRITTEN
  */
 function extract_content_from_google_html($html) {
     if (empty($html)) {
@@ -230,41 +233,215 @@ function extract_content_from_google_html($html) {
         return '';
     }
     
-    // Extract text content while preserving some structure
-    $content = extract_text_with_structure($body);
+    // Extract HTML content while preserving structure - NEW APPROACH
+    $content = extract_html_with_structure($body);
     
-    // Clean up the content
-    $content = html_entity_decode($content, ENT_QUOTES, 'UTF-8');
-    $content = preg_replace('/\s+/', ' ', $content); // Normalize spaces
-    $content = preg_replace('/\n\s*\n/', "\n\n", $content); // Clean up line breaks
+    // Clean up Google-specific elements and styles
+    $content = clean_google_docs_html($content);
     
-    return trim($content);
+    return $content;
 }
 
 /**
- * Extract text content while preserving paragraph structure
+ * NEW FUNCTION: Extract HTML content while preserving formatting
  */
-function extract_text_with_structure($node) {
+function extract_html_with_structure($node) {
     $content = '';
     
     foreach ($node->childNodes as $child) {
         if ($child->nodeType === XML_TEXT_NODE) {
-            $content .= $child->textContent;
+            // Get text content and escape it properly
+            $text = trim($child->textContent);
+            if (!empty($text)) {
+                $content .= esc_html($text);
+            }
         } elseif ($child->nodeType === XML_ELEMENT_NODE) {
             $tag_name = strtolower($child->tagName);
             
-            // Add line breaks for block elements
-            if (in_array($tag_name, ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br'])) {
-                $content .= "\n" . extract_text_with_structure($child) . "\n";
-            } elseif (in_array($tag_name, ['li'])) {
-                $content .= "\n• " . extract_text_with_structure($child) . "\n";
-            } else {
-                $content .= extract_text_with_structure($child);
+            // Handle different HTML elements
+            switch ($tag_name) {
+                case 'p':
+                case 'div':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<p>' . $inner_content . '</p>';
+                    }
+                    break;
+                    
+                case 'h1':
+                case 'h2':
+                case 'h3':
+                case 'h4':
+                case 'h5':
+                case 'h6':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<' . $tag_name . '>' . $inner_content . '</' . $tag_name . '>';
+                    }
+                    break;
+                    
+                case 'strong':
+                case 'b':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<strong>' . $inner_content . '</strong>';
+                    }
+                    break;
+                    
+                case 'em':
+                case 'i':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<em>' . $inner_content . '</em>';
+                    }
+                    break;
+                    
+                case 'u':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<u>' . $inner_content . '</u>';
+                    }
+                    break;
+                    
+                case 'br':
+                    $content .= '<br>';
+                    break;
+                    
+                case 'ul':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<ul>' . $inner_content . '</ul>';
+                    }
+                    break;
+                    
+                case 'ol':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<ol>' . $inner_content . '</ol>';
+                    }
+                    break;
+                    
+                case 'li':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<li>' . $inner_content . '</li>';
+                    }
+                    break;
+                    
+                case 'a':
+                    $href = $child->getAttribute('href');
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content))) && !empty($href)) {
+                        $content .= '<a href="' . esc_url($href) . '">' . $inner_content . '</a>';
+                    } else if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= $inner_content;
+                    }
+                    break;
+                    
+                case 'blockquote':
+                    $inner_content = extract_html_with_structure($child);
+                    if (!empty(trim(strip_tags($inner_content)))) {
+                        $content .= '<blockquote>' . $inner_content . '</blockquote>';
+                    }
+                    break;
+                    
+                // Skip Google-specific elements and scripts
+                case 'script':
+                case 'style':
+                case 'meta':
+                case 'link':
+                case 'title':
+                case 'head':
+                    break;
+                    
+                // For any other elements, just extract their content
+                default:
+                    $content .= extract_html_with_structure($child);
+                    break;
             }
         }
     }
     
     return $content;
+}
+
+/**
+ * NEW FUNCTION: Clean up Google Docs specific HTML artifacts
+ */
+function clean_google_docs_html($html) {
+    if (empty($html)) {
+        return '';
+    }
+    
+    // Remove Google Docs specific CSS classes and styles
+    $html = preg_replace('/\s+class="[^"]*"/', '', $html);
+    $html = preg_replace('/\s+style="[^"]*"/', '', $html);
+    $html = preg_replace('/\s+id="[^"]*"/', '', $html);
+    
+    // Clean up excessive whitespace but preserve intentional spacing
+    $html = preg_replace('/>\s+</', '><', $html);
+    $html = preg_replace('/\s{2,}/', ' ', $html);
+    
+    // Remove empty paragraphs and elements
+    $html = preg_replace('/<p[^>]*>\s*<\/p>/', '', $html);
+    $html = preg_replace('/<div[^>]*>\s*<\/div>/', '', $html);
+    
+    // Fix multiple consecutive line breaks
+    $html = preg_replace('/(<br\s*\/?>\s*){3,}/', '<br><br>', $html);
+    
+    return trim($html);
+}
+
+/**
+ * NEW FUNCTION: Sanitize HTML content (renamed to avoid conflicts)
+ */
+function content_automation_sanitize_html_content($content, $method = 'html_export') {
+    if (empty($content)) {
+        return '';
+    }
+    
+    // If it's plain text method, convert to HTML first
+    if ($method === 'text_export') {
+        $content = wpautop($content);
+    }
+    
+    // Allow specific HTML tags that are safe and useful for formatting
+    $allowed_tags = array(
+        'p' => array(),
+        'br' => array(),
+        'strong' => array(),
+        'b' => array(),
+        'em' => array(),
+        'i' => array(),
+        'u' => array(),
+        'h1' => array(),
+        'h2' => array(),
+        'h3' => array(),
+        'h4' => array(),
+        'h5' => array(),
+        'h6' => array(),
+        'ul' => array(),
+        'ol' => array(),
+        'li' => array(),
+        'blockquote' => array(),
+        'a' => array(
+            'href' => array(),
+            'title' => array(),
+            'target' => array(),
+            'rel' => array()
+        )
+    );
+    
+    // Sanitize HTML while preserving allowed formatting
+    $content = wp_kses($content, $allowed_tags);
+    
+    // Clean up any weird unicode characters
+    $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
+    
+    // Remove excessive line breaks in HTML
+    $content = preg_replace('/(<\/p>\s*){2,}/', '</p>', $content);
+    
+    return trim($content);
 }
 
 /**
@@ -311,24 +488,6 @@ function test_google_docs_access($docs_id) {
 }
 
 /**
- * IMPORTANT: Instructions for making Google Docs accessible
- * 
- * For the content fetching to work, users need to:
- * 
- * 1. PUBLISH TO WEB: Go to File > Publish to web > Publish
- *    - This makes the export URLs work without authentication
- *    - The document remains private but exports are accessible
- * 
- * 2. SHARE PUBLICLY: Set sharing to "Anyone with the link can view"
- *    - Go to Share > Change to "Anyone with the link"
- *    - Set permission to "Viewer"
- * 
- * 3. ALTERNATIVE: Use Google Apps Script to push content
- *    - Create a script that sends content to WordPress via REST API
- *    - More reliable but requires more setup
- */
-
-/**
  * Get instructions for making docs accessible
  */
 function get_google_docs_setup_instructions() {
@@ -373,3 +532,4 @@ function get_google_docs_setup_instructions() {
         'note' => 'For best results, use Method 1 (Publish to Web) as it provides the most reliable access to document content.'
     );
 }
+?>
