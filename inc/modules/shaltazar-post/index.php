@@ -38,7 +38,7 @@ function load_shaltazar_post_module() {
 }
 
 /**
- * Register Shaltazar Custom Post Type - MOVED HERE
+ * Register Shaltazar Custom Post Type - MOVED HERE WITH CATEGORY SUPPORT
  */
 function register_shaltazar_post_type() {
     $labels = array(
@@ -71,11 +71,14 @@ function register_shaltazar_post_type() {
         'menu_position'         => 20,
         'menu_icon'             => 'dashicons-format-audio',
         'supports'              => array('title', 'editor', 'thumbnail', 'excerpt', 'custom-fields'),
-        'taxonomies'            => array('category'), // support categories / taxonomies for sorting
+        'taxonomies'            => array('category'), // ADDED CATEGORY SUPPORT HERE
         'show_in_rest'          => true,
     );
 
     register_post_type('shaltazar_post', $args);
+    
+    // Ensure category taxonomy is registered for this post type
+    register_taxonomy_for_object_type('category', 'shaltazar_post');
 }
 
 // Hook everything to init at priority 10 (nice and late)

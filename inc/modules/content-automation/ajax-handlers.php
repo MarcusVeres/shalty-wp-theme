@@ -106,7 +106,7 @@ function content_automation_process_single_post() {
 }
 
 /**
- * Start batch processing
+ * Start batch processing - UPDATED VERSION
  */
 function content_automation_start_batch_process() {
     // Verify nonce
@@ -191,6 +191,7 @@ function content_automation_start_batch_process() {
     update_option('ca_batch_options', array(
         'process_content' => $process_content,
         'process_thumbnails' => $process_thumbnails,
+        'process_categories' => $process_categories, // Make sure this is stored
         'force_update' => $force_update
     ));
     
@@ -203,7 +204,7 @@ function content_automation_start_batch_process() {
 }
 
 /**
- * Get batch processing status
+ * Get batch processing status - UPDATED VERSION
  */
 function content_automation_get_batch_status() {
     // Verify nonce
@@ -234,17 +235,17 @@ function content_automation_get_batch_status() {
             $category_result = array('success' => true, 'message' => 'Skipped');
             
             // Process content if enabled
-            if ($options['process_content']) {
+            if (isset($options['process_content']) && $options['process_content']) {
                 $content_result = fetch_google_docs_content($next_post_id, $options['force_update']);
             }
             
             // Process thumbnail if enabled
-            if ($options['process_thumbnails']) {
+            if (isset($options['process_thumbnails']) && $options['process_thumbnails']) {
                 $thumbnail_result = process_youtube_thumbnail($next_post_id, $options['force_update']);
             }
             
-            // Process categories if enabled
-            if ($options['process_categories']) {
+            // Process categories if enabled - THIS WAS POTENTIALLY MISSING
+            if (isset($options['process_categories']) && $options['process_categories']) {
                 $category_result = sync_theme_to_categories($next_post_id, $options['force_update']);
             }
             

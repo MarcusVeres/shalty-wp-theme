@@ -105,14 +105,19 @@ function content_automation_meta_box_callback($post) {
         echo '<p><em>No YouTube URL found. Add one to enable thumbnail processing.</em></p>';
     }
     
+    // ADD THIS HOOK - This was missing!
+    do_action('content_automation_meta_box_after', $post);
+    
     echo '<hr>';
     
-    // Process Both
+    // Process All Button
     if ($status['has_google_docs_id'] || $status['has_youtube_link']) {
-        echo '<button type="button" class="button button-primary ca-process-both" ';
-        echo 'data-action="process_both" data-post-id="' . $post->ID . '">';
-        echo 'Process Both';
+        echo '<button type="button" class="button button-primary ca-process-all" ';
+        echo 'data-action="process_all" data-post-id="' . $post->ID . '">';
+        echo 'Process All (Content + Thumbnail + Category)';
         echo '</button>';
+        
+        echo '<label><input type="checkbox" class="ca-force-update" /> Force update</label>';
     }
     
     echo '</div>';
