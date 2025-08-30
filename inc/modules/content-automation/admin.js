@@ -23,7 +23,7 @@
      * Individual post action handlers
      */
     function initIndividualPostActions() {
-        $(document).on('click', '.ca-fetch-content, .ca-process-thumbnail, .ca-process-both', function(e) {
+        $(document).on('click', '.ca-fetch-content, .ca-process-thumbnail, .ca-sync-category, .ca-process-both, .ca-process-all', function(e) {
             e.preventDefault();
             
             const $button = $(this);
@@ -69,8 +69,28 @@
                     
                     let html = '<h4>Success!</h4>';
                     
-                    if (response.data.content_result && response.data.thumbnail_result) {
-                        // Process both action
+                    if (response.data.content_result && response.data.thumbnail_result && response.data.category_result) {
+                        // Process all action
+                        html += '<div><strong>Content:</strong> ';
+                        html += response.data.content_result.success ? 
+                            '✅ ' + response.data.content_result.message : 
+                            '❌ ' + response.data.content_result.error;
+                        html += '</div>';
+                        
+                        html += '<div><strong>Thumbnail:</strong> ';
+                        html += response.data.thumbnail_result.success ? 
+                            '✅ ' + response.data.thumbnail_result.message : 
+                            '❌ ' + response.data.thumbnail_result.error;
+                        html += '</div>';
+                        
+                        html += '<div><strong>Category:</strong> ';
+                        html += response.data.category_result.success ? 
+                            '✅ ' + response.data.category_result.message : 
+                            '❌ ' + response.data.category_result.error;
+                        html += '</div>';
+                        
+                    } else if (response.data.content_result && response.data.thumbnail_result) {
+                        // Process both action (legacy)
                         html += '<div><strong>Content:</strong> ';
                         html += response.data.content_result.success ? 
                             '✅ ' + response.data.content_result.message : 
@@ -92,6 +112,14 @@
                         
                         if (response.data.video_id) {
                             html += '<p><small>YouTube Video ID: ' + response.data.video_id + '</small></p>';
+                        }
+                        
+                        if (response.data.category && response.data.category.name) {
+                            html += '<p><small>Category: ' + response.data.category.name;
+                            if (response.data.category.created) {
+                                html += ' (created new)';
+                            }
+                            html += '</small></p>';
                         }
                     }
                     
@@ -124,8 +152,14 @@
                     case 'process_thumbnail':
                         buttonText = 'Download Thumbnail';
                         break;
+                    case 'sync_category':
+                        buttonText = 'Sync Category';
+                        break;
                     case 'process_both':
                         buttonText = 'Process Both';
+                        break;
+                    case 'process_all':
+                        buttonText = 'Process All';
                         break;
                 }
                 $button.text(buttonText);
@@ -142,9 +176,10 @@
             
             const processContent = $('#ca-batch-content').is(':checked');
             const processThumbnails = $('#ca-batch-thumbnails').is(':checked');
+            const processCategories = $('#ca-batch-categories').is(':checked');
             const forceUpdate = $('#ca-batch-force').is(':checked');
             
-            if (!processContent && !processThumbnails) {
+            if (!processContent && !processThumbnails && !processCategories) {
                 alert('Please select at least one processing type.');
                 return;
             }
@@ -153,7 +188,7 @@
                 return;
             }
             
-            startBatchProcessing(processContent, processThumbnails, forceUpdate);
+            startBatchProcessing(processContent, processThumbnails, processCategories, forceUpdate);
         });
         
         $('#ca-stop-batch').on('click', function(e) {
@@ -168,7 +203,7 @@
     /**
      * Start batch processing
      */
-    function startBatchProcessing(processContent, processThumbnails, forceUpdate) {
+    function startBatchProcessing(processContent, processThumbnails, processCategories, forceUpdate) {
         $.ajax({
             url: caAdmin.ajaxUrl,
             type: 'POST',
@@ -177,6 +212,7 @@
                 nonce: caAdmin.nonce,
                 process_content: processContent,
                 process_thumbnails: processThumbnails,
+                process_categories: processCategories,
                 force_update: forceUpdate
             },
             success: function(response) {

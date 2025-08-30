@@ -246,8 +246,13 @@ function content_automation_admin_page() {
                         </label>
                         <br />
                         <label>
+                            <input type="checkbox" id="ca-batch-categories" checked />
+                            Sync theme categories for posts with theme values
+                        </label>
+                        <br />
+                        <label>
                             <input type="checkbox" id="ca-batch-force" />
-                            Force update (overwrite existing content/images)
+                            Force update (overwrite existing content/images/categories)
                         </label>
                     </div>
                     

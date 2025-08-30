@@ -31,7 +31,8 @@ function load_content_automation_module() {
         'google-docs.php',
         'youtube-processor.php',
         'admin.php',
-        'ajax-handlers.php'
+        'ajax-handlers.php',
+        'category-automation.php'
     );
     
     foreach ($files as $file) {

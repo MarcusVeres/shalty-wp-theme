@@ -12,9 +12,24 @@ inc/
     loader.php
     theme-setup.php
   modules/
+    content-automation/
+      admin.js
+      admin.php
+      ajax-handlers.php
+      category-automation.php
+      google-docs.php
+      index.php
+      utilities.php
+      youtube-processor.php
     scroll-offset/
       admin.php
       frontend.php
+      utilities.php
+    shaltazar-post/
+      admin.php
+      frontend.php
+      index.php
+      post-type.php
       utilities.php
 node_modules/
   [lots-of-modules]

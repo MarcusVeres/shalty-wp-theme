@@ -43,6 +43,10 @@ function content_automation_process_single_post() {
             $result = process_youtube_thumbnail($post_id, $force_update);
             break;
             
+        case 'sync_category':
+            $result = sync_theme_to_categories($post_id, $force_update);
+            break;
+            
         case 'process_both':
             $content_result = fetch_google_docs_content($post_id, $force_update);
             $thumbnail_result = process_youtube_thumbnail($post_id, $force_update);
@@ -59,6 +63,33 @@ function content_automation_process_single_post() {
                 $result['success'] = false;
                 $result['message'] = 'Both operations failed';
             } elseif (!$content_result['success'] || !$thumbnail_result['success']) {
+                $result['message'] = 'Partial success - some operations failed';
+            }
+            break;
+            
+        case 'process_all':
+            $content_result = fetch_google_docs_content($post_id, $force_update);
+            $thumbnail_result = process_youtube_thumbnail($post_id, $force_update);
+            $category_result = sync_theme_to_categories($post_id, $force_update);
+            
+            $result = array(
+                'success' => true,
+                'content_result' => $content_result,
+                'thumbnail_result' => $thumbnail_result,
+                'category_result' => $category_result,
+                'message' => 'All processing completed'
+            );
+            
+            // Count successes
+            $success_count = 0;
+            if ($content_result['success']) $success_count++;
+            if ($thumbnail_result['success']) $success_count++;
+            if ($category_result['success']) $success_count++;
+            
+            if ($success_count === 0) {
+                $result['success'] = false;
+                $result['message'] = 'All operations failed';
+            } elseif ($success_count < 3) {
                 $result['message'] = 'Partial success - some operations failed';
             }
             break;
@@ -95,9 +126,10 @@ function content_automation_start_batch_process() {
     
     $process_content = isset($_POST['process_content']) && $_POST['process_content'] === 'true';
     $process_thumbnails = isset($_POST['process_thumbnails']) && $_POST['process_thumbnails'] === 'true';
+    $process_categories = isset($_POST['process_categories']) && $_POST['process_categories'] === 'true';
     $force_update = isset($_POST['force_update']) && $_POST['force_update'] === 'true';
     
-    if (!$process_content && !$process_thumbnails) {
+    if (!$process_content && !$process_thumbnails && !$process_categories) {
         wp_send_json_error('At least one processing type must be selected');
     }
     
@@ -127,6 +159,14 @@ function content_automation_start_batch_process() {
             $has_youtube = !empty(get_field('youtube_link', $post_id)) || !empty(get_field('youtube_link_old', $post_id));
             
             if (($force_update || !$has_thumbnail) && $has_youtube) {
+                $needs_processing = true;
+            }
+        }
+        
+        if ($process_categories) {
+            $category_status = get_theme_category_status($post_id);
+            
+            if (($force_update || $category_status['needs_sync']) && $category_status['has_theme']) {
                 $needs_processing = true;
             }
         }
@@ -191,6 +231,7 @@ function content_automation_get_batch_status() {
             
             $content_result = array('success' => true, 'message' => 'Skipped');
             $thumbnail_result = array('success' => true, 'message' => 'Skipped');
+            $category_result = array('success' => true, 'message' => 'Skipped');
             
             // Process content if enabled
             if ($options['process_content']) {
@@ -202,11 +243,22 @@ function content_automation_get_batch_status() {
                 $thumbnail_result = process_youtube_thumbnail($next_post_id, $options['force_update']);
             }
             
+            // Process categories if enabled
+            if ($options['process_categories']) {
+                $category_result = sync_theme_to_categories($next_post_id, $options['force_update']);
+            }
+            
             // Update progress
             $success_count = $batch_status['success'];
             $error_count = $batch_status['errors'];
             
-            if ($content_result['success'] && $thumbnail_result['success']) {
+            $operation_success_count = 0;
+            if ($content_result['success']) $operation_success_count++;
+            if ($thumbnail_result['success']) $operation_success_count++;
+            if ($category_result['success']) $operation_success_count++;
+            
+            // Count as overall success if at least one operation succeeded
+            if ($operation_success_count > 0) {
                 $success_count++;
             } else {
                 $error_count++;

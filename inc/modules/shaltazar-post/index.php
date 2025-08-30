@@ -71,6 +71,7 @@ function register_shaltazar_post_type() {
         'menu_position'         => 20,
         'menu_icon'             => 'dashicons-format-audio',
         'supports'              => array('title', 'editor', 'thumbnail', 'excerpt', 'custom-fields'),
+        'taxonomies'            => array('category'), // support categories / taxonomies for sorting
         'show_in_rest'          => true,
     );
 
