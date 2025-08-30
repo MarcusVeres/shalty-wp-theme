@@ -1,0 +1,106 @@
+/*
+Theme Name: Hello Child Shaltazar
+Description: A modular starter child theme for Hello Theme with useful utilities - extended for Shaltazar
+Author: Claude & Marcus 
+Author URI: https://github.com/your-username/hello-child-starter
+Template: hello-elementor
+Version: 1.0.1
+Text Domain: hello-child-starter
+Domain Path: /languages
+License: GPL v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+This theme, like WordPress, is licensed under the GPL.
+Use it to make something cool, have fun, and share what you've learned.
+*/
+
+/* 
+=================================================
+HELLO CHILD STARTER - CUSTOM STYLES
+Add your custom CSS below this line
+=================================================
+*/
+
+/* Base styling improvements */
+.hello-child-theme {
+    /* Global styles for child theme */
+}
+
+/* Scroll offset module styles are injected by PHP */
+/* These are fallback styles in case the module is disabled */
+.hc-anchor-point {
+    display: block;
+    position: relative;
+    visibility: hidden;
+    height: 0;
+}
+
+.hc-anchor-offset {
+    /* Fallback styling for anchor offset elements */
+}
+
+/* Example: WooCommerce customizations (when WooCommerce is active) */
+.woocommerce {
+    /* Custom WooCommerce styling goes here */
+}
+
+/* Example: Elementor customizations (when Elementor is active) */
+.elementor-section {
+    /* Custom Elementor section styling goes here */
+}
+
+/* Example: ACF field customizations (when ACF is active) */
+.acf-field {
+    /* Custom ACF field styling goes here */
+}
+
+/* 
+=================================================
+UTILITY CLASSES
+=================================================
+*/
+
+/* Screen reader text */
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0,0,0,0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* Skip to content link */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    z-index: 999999;
+    padding: 8px 16px;
+    background: #000;
+    color: #fff;
+    text-decoration: none;
+}
+
+.skip-link:focus {
+    left: 6px;
+    top: 7px;
+}
+
+/* 
+=================================================
+RESPONSIVE DESIGN
+=================================================
+*/
+
+/* Tablet styles */
+@media (max-width: 1024px) {
+    /* Add tablet-specific styles here */
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+    /* Add mobile-specific styles here */
+}

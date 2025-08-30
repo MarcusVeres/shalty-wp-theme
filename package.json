@@ -1,0 +1,32 @@
+{
+  "name": "hello-child-starter-theme",
+  "version": "1.0.0",
+  "description": "Build scripts for Hello Child Theme Starter - A modular WordPress child theme",
+  "scripts": {
+    "build": "node build.js",
+    "build:patch": "node build.js patch",
+    "build:minor": "node build.js minor",
+    "build:major": "node build.js major"
+  },
+  "devDependencies": {
+    "archiver": "^6.0.1"
+  },
+  "private": true,
+  "keywords": [
+    "wordpress",
+    "theme",
+    "child-theme",
+    "hello-theme",
+    "modular"
+  ],
+  "author": "Hello Child Theme Contributors",
+  "license": "GPL-2.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/hello-child-starter.git"
+  },
+  "homepage": "https://github.com/your-username/hello-child-starter#readme",
+  "bugs": {
+    "url": "https://github.com/your-username/hello-child-starter/issues"
+  }
+}
