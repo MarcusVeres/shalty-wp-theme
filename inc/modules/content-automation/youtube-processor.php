@@ -213,13 +213,12 @@ function download_image_from_url($url, $video_id, $quality) {
     if (strlen($image_data) < 1000) {
         return array(
             'success' => false,
-            'error' => 'Thumbnail too small (likely placeholder) for quality: ' . $quality
+            'error' => 'Thumbnail too small (likely placeholder) for quality: ' . $quality . ' (Size: ' . strlen($image_data) . ' bytes)'
         );
     }
     
-    // Create temporary file
-    $temp_file = wp_tempnam($video_id . '_' . $quality . '.jpg');
-    
+    // Create temporary file with proper extension
+    $temp_file = wp_tempnam($video_id . '_' . $quality . '_' . time());
     if (!$temp_file) {
         return array(
             'success' => false,
@@ -227,10 +226,19 @@ function download_image_from_url($url, $video_id, $quality) {
         );
     }
     
+    // Rename to have .jpg extension for proper validation
+    $temp_file_jpg = $temp_file . '.jpg';
+    if (file_exists($temp_file)) {
+        rename($temp_file, $temp_file_jpg);
+    }
+    
     // Write image data to temporary file
-    $bytes_written = file_put_contents($temp_file, $image_data);
+    $bytes_written = file_put_contents($temp_file_jpg, $image_data);
     
     if ($bytes_written === false) {
+        if (file_exists($temp_file_jpg)) {
+            unlink($temp_file_jpg);
+        }
         return array(
             'success' => false,
             'error' => 'Could not write image data to temporary file'
@@ -238,24 +246,35 @@ function download_image_from_url($url, $video_id, $quality) {
     }
     
     // Verify it's a valid image
-    $image_info = getimagesize($temp_file);
+    $image_info = getimagesize($temp_file_jpg);
     if ($image_info === false) {
-        unlink($temp_file);
+        unlink($temp_file_jpg);
         return array(
             'success' => false,
-            'error' => 'Downloaded file is not a valid image'
+            'error' => 'Downloaded file is not a valid image (Size: ' . $bytes_written . ' bytes)'
+        );
+    }
+    
+    // Additional validation - check if it's actually a JPEG
+    if ($image_info[2] !== IMAGETYPE_JPEG) {
+        unlink($temp_file_jpg);
+        return array(
+            'success' => false,
+            'error' => 'Downloaded file is not a JPEG image (Type: ' . $image_info[2] . ')'
         );
     }
     
     return array(
         'success' => true,
-        'file_path' => $temp_file,
-        'image_info' => $image_info
+        'file_path' => $temp_file_jpg,
+        'image_info' => $image_info,
+        'size_bytes' => $bytes_written
     );
 }
 
 /**
  * Upload image file to WordPress media library
+ * Alternative approach that bypasses wp_handle_upload validation issues
  */
 function upload_image_to_media_library($file_path, $video_id, $post_id) {
     if (!file_exists($file_path)) {
@@ -265,19 +284,6 @@ function upload_image_to_media_library($file_path, $video_id, $post_id) {
         );
     }
     
-    // Generate filename
-    $post_title = get_the_title($post_id);
-    $filename = sanitize_file_name($post_title . '_youtube_thumbnail_' . $video_id . '.jpg');
-    
-    // Prepare file array for wp_handle_upload
-    $file_array = array(
-        'name' => $filename,
-        'type' => 'image/jpeg',
-        'tmp_name' => $file_path,
-        'error' => 0,
-        'size' => filesize($file_path)
-    );
-    
     // Include required WordPress files
     if (!function_exists('wp_handle_upload')) {
         require_once(ABSPATH . 'wp-admin/includes/image.php');
@@ -285,42 +291,91 @@ function upload_image_to_media_library($file_path, $video_id, $post_id) {
         require_once(ABSPATH . 'wp-admin/includes/media.php');
     }
     
-    // Upload file
-    $upload_result = wp_handle_upload($file_array, array('test_form' => false));
+    // Generate filename
+    $post_title = get_the_title($post_id);
+    $filename = sanitize_file_name($post_title . '_youtube_thumbnail_' . $video_id . '.jpg');
     
-    if (isset($upload_result['error'])) {
+    // Get WordPress upload directory
+    $upload_dir = wp_upload_dir();
+    
+    if ($upload_dir['error']) {
         return array(
             'success' => false,
-            'error' => 'Upload failed: ' . $upload_result['error']
+            'error' => 'Upload directory error: ' . $upload_dir['error']
+        );
+    }
+    
+    // Create destination path
+    $destination = $upload_dir['path'] . '/' . $filename;
+    $destination_url = $upload_dir['url'] . '/' . $filename;
+    
+    // Ensure filename is unique
+    $counter = 1;
+    while (file_exists($destination)) {
+        $name_parts = pathinfo($filename);
+        $new_filename = $name_parts['filename'] . '_' . $counter . '.' . $name_parts['extension'];
+        $destination = $upload_dir['path'] . '/' . $new_filename;
+        $destination_url = $upload_dir['url'] . '/' . $new_filename;
+        $counter++;
+    }
+    
+    // Copy file to uploads directory
+    if (!copy($file_path, $destination)) {
+        return array(
+            'success' => false,
+            'error' => 'Failed to copy file to uploads directory'
+        );
+    }
+    
+    // Verify the copied file
+    if (!file_exists($destination)) {
+        return array(
+            'success' => false,
+            'error' => 'File was not successfully copied'
+        );
+    }
+    
+    // Get the correct MIME type
+    $file_type = wp_check_filetype($destination);
+    
+    if (!$file_type['type']) {
+        // Clean up the file we just created
+        unlink($destination);
+        return array(
+            'success' => false,
+            'error' => 'Invalid file type'
         );
     }
     
     // Create attachment
     $attachment = array(
-        'guid' => $upload_result['url'],
-        'post_mime_type' => $upload_result['type'],
+        'guid' => $destination_url,
+        'post_mime_type' => $file_type['type'],
         'post_title' => $post_title . ' - YouTube Thumbnail',
         'post_content' => '',
         'post_status' => 'inherit'
     );
     
-    $attachment_id = wp_insert_attachment($attachment, $upload_result['file'], $post_id);
+    $attachment_id = wp_insert_attachment($attachment, $destination, $post_id);
     
     if (is_wp_error($attachment_id)) {
+        // Clean up the file we created
+        unlink($destination);
         return array(
             'success' => false,
             'error' => 'Failed to create attachment: ' . $attachment_id->get_error_message()
         );
     }
     
-    // Generate attachment metadata
-    $attachment_data = wp_generate_attachment_metadata($attachment_id, $upload_result['file']);
+    // Generate attachment metadata (this creates different image sizes)
+    $attachment_data = wp_generate_attachment_metadata($attachment_id, $destination);
     wp_update_attachment_metadata($attachment_id, $attachment_data);
     
     return array(
         'success' => true,
         'attachment_id' => $attachment_id,
-        'url' => $upload_result['url']
+        'url' => $destination_url,
+        'file_path' => $destination
     );
 }
 
@@ -393,32 +448,101 @@ function bulk_process_youtube_thumbnails($post_ids, $force_update = false) {
 }
 
 /**
- * Clean up orphaned thumbnail attachments
+ * Debug YouTube thumbnail download process
+ * Useful for troubleshooting upload issues
  */
-function cleanup_orphaned_thumbnails() {
-    global $wpdb;
+function debug_youtube_thumbnail_process($video_id) {
+    $debug_info = array(
+        'video_id' => $video_id,
+        'server_info' => array(),
+        'download_tests' => array(),
+        'upload_tests' => array()
+    );
     
-    // Find attachments that were created for thumbnails but are no longer used
-    $orphaned_attachments = $wpdb->get_results("
-        SELECT ID 
-        FROM {$wpdb->posts} 
-        WHERE post_type = 'attachment' 
-        AND post_mime_type LIKE 'image/%'
-        AND post_title LIKE '%YouTube Thumbnail%'
-        AND post_parent = 0
-        AND ID NOT IN (
-            SELECT meta_value 
-            FROM {$wpdb->postmeta} 
-            WHERE meta_key = '_thumbnail_id'
-        )
-    ");
+    // Check server capabilities
+    $debug_info['server_info'] = array(
+        'curl_enabled' => function_exists('curl_init'),
+        'allow_url_fopen' => ini_get('allow_url_fopen'),
+        'max_execution_time' => ini_get('max_execution_time'),
+        'memory_limit' => ini_get('memory_limit'),
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'temp_dir' => sys_get_temp_dir(),
+        'wp_temp_dir' => get_temp_dir()
+    );
     
-    $deleted_count = 0;
-    foreach ($orphaned_attachments as $attachment) {
-        if (wp_delete_attachment($attachment->ID, true)) {
-            $deleted_count++;
+    // Test uploads directory
+    $upload_dir = wp_upload_dir();
+    $debug_info['upload_tests'] = array(
+        'upload_dir_exists' => is_dir($upload_dir['path']),
+        'upload_dir_writable' => is_writable($upload_dir['path']),
+        'upload_dir_path' => $upload_dir['path'],
+        'upload_dir_url' => $upload_dir['url'],
+        'upload_dir_error' => $upload_dir['error']
+    );
+    
+    // Test downloading thumbnails
+    $qualities = array('default', 'hqdefault');
+    foreach ($qualities as $quality) {
+        $thumbnail_url = "https://img.youtube.com/vi/{$video_id}/{$quality}.jpg";
+        
+        $response = content_automation_http_request($thumbnail_url);
+        $debug_info['download_tests'][$quality] = array(
+            'url' => $thumbnail_url,
+            'success' => $response['success'],
+            'error' => $response['success'] ? null : $response['error'],
+            'size_bytes' => $response['success'] ? strlen($response['body']) : 0,
+            'is_valid_size' => $response['success'] ? (strlen($response['body']) > 1000) : false
+        );
+        
+        // Test if we can create a temp file
+        if ($response['success']) {
+            $temp_file = wp_tempnam($video_id . '_' . $quality . '_debug');
+            $debug_info['download_tests'][$quality]['temp_file_created'] = $temp_file !== false;
+            
+            if ($temp_file) {
+                $written = file_put_contents($temp_file, $response['body']);
+                $debug_info['download_tests'][$quality]['temp_file_written'] = $written !== false;
+                $debug_info['download_tests'][$quality]['written_bytes'] = $written;
+                
+                if ($written) {
+                    $image_info = getimagesize($temp_file);
+                    $debug_info['download_tests'][$quality]['is_valid_image'] = $image_info !== false;
+                    if ($image_info) {
+                        $debug_info['download_tests'][$quality]['image_dimensions'] = $image_info[0] . 'x' . $image_info[1];
+                        $debug_info['download_tests'][$quality]['image_type'] = $image_info[2];
+                    }
+                    
+                    // Clean up
+                    unlink($temp_file);
+                }
+            }
         }
     }
     
-    return $deleted_count;
+    return $debug_info;
 }
+
+/**
+ * AJAX handler for debugging YouTube thumbnails
+ */
+function debug_youtube_thumbnail_ajax() {
+    if (!wp_verify_nonce($_POST['nonce'], 'content_automation_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions');
+    }
+    
+    $video_id = sanitize_text_field($_POST['video_id']);
+    
+    if (empty($video_id)) {
+        wp_send_json_error('Video ID is required');
+    }
+    
+    $debug_info = debug_youtube_thumbnail_process($video_id);
+    
+    wp_send_json_success($debug_info);
+}
+add_action('wp_ajax_debug_youtube_thumbnail', 'debug_youtube_thumbnail_ajax');
