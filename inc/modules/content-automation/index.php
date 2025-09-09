@@ -93,20 +93,11 @@ function content_automation_admin_column_content($column, $post_id) {
         
         echo '<div class="ca-quick-actions" data-post-id="' . $post_id . '">';
         
-        // Status indicators
-        echo '<div class="ca-status-indicators">';
-        echo '<span title="Content" class="ca-indicator ca-content-' . ($status['has_content'] ? 'yes' : 'no') . '">C</span>';
-        echo '<span title="Featured Image" class="ca-indicator ca-image-' . ($status['has_featured_image'] ? 'yes' : 'no') . '">I</span>';
-        echo '</div>';
-        
-        // Quick action buttons
-        if ($status['has_google_docs_id']) {
-            echo '<button type="button" class="button-small ca-quick-content" data-post-id="' . $post_id . '" title="Fetch Content">📄</button>';
-        }
-        
-        if ($status['has_youtube_link']) {
-            echo '<button type="button" class="button-small ca-quick-thumbnail" data-post-id="' . $post_id . '" title="Get Thumbnail">🖼️</button>';
-        }
+            // Status indicators
+            echo '<div class="ca-status-indicators">';
+            echo '<span title="Content" class="ca-indicator ca-content-' . ($status['has_content'] ? 'yes' : 'no') . '">C</span>';
+            echo '<span title="Featured Image" class="ca-indicator ca-image-' . ($status['has_featured_image'] ? 'yes' : 'no') . '">I</span>';
+            echo '</div>';
         
         echo '</div>';
     }
