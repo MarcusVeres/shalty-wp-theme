@@ -1,5 +1,5 @@
 /**
- * Content Automation Admin JavaScript - DEBUG VERSION
+ * Content Automation Admin JavaScript w/ DEBUG 
  */
 
 (function($) {
@@ -40,7 +40,8 @@
             const $button = $(this);
             const postId = $button.data('post-id');
             const action = $button.data('action');
-            const forceUpdate = $button.siblings('.ca-force-update').is(':checked');
+            
+            const forceUpdate = $button.siblings('label').find('.ca-force-update').is(':checked');
             
             // Confirm if force update is enabled
             if (forceUpdate && !confirm(caAdmin.messages.confirm_force)) {
