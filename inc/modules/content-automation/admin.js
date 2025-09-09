@@ -1,22 +1,33 @@
 /**
- * Content Automation Admin JavaScript
+ * Content Automation Admin JavaScript - DEBUG VERSION
  */
 
 (function($) {
     'use strict';
     
+    console.log('Content Automation JS loaded');
+    
     let batchInterval;
     let batchRunning = false;
+    let massDeleteInterval;
+    let massDeleteRunning = false;
     
     $(document).ready(function() {
+        console.log('Document ready, initializing handlers');
+        console.log('caAdmin object:', caAdmin);
+        
         // Initialize all handlers
         initIndividualPostActions();
         initBatchProcessing();
+        initMassDelete();
         initTestingTools();
         initLogActions();
         
         // Check if batch is already running on page load
         checkBatchStatus();
+        
+        // Check if mass delete is already running on page load
+        checkMassDeleteStatus();
     });
     
     /**
@@ -324,6 +335,173 @@
                     
                     $('#ca-batch-controls').show();
                     $('#ca-batch-progress').hide();
+                }
+            }
+        });
+    }
+    
+    /**
+     * Mass delete handlers
+     */
+    function initMassDelete() {
+        console.log('Initializing mass delete handlers');
+        
+        // Check if button exists
+        const $button = $('#ca-start-mass-delete');
+        console.log('Mass delete button found:', $button.length > 0);
+        console.log('Button element:', $button[0]);
+        
+        $button.on('click', function(e) {
+            console.log('Mass delete button clicked!');
+            e.preventDefault();
+            
+            // Check if confirm_mass_delete message exists
+            console.log('Confirm message:', caAdmin.messages.confirm_mass_delete);
+            
+            if (!confirm(caAdmin.messages.confirm_mass_delete || 'This will permanently delete ALL Shaltazar posts and their images. This cannot be undone. Are you sure?')) {
+                console.log('User cancelled');
+                return;
+            }
+            
+            console.log('User confirmed, starting mass delete');
+            startMassDelete();
+        });
+        
+        $('#ca-stop-mass-delete').on('click', function(e) {
+            console.log('Stop mass delete clicked');
+            e.preventDefault();
+            
+            if (confirm('Stop mass deletion?')) {
+                stopMassDelete();
+            }
+        });
+        
+        console.log('Mass delete handlers initialized');
+    }
+    
+    /**
+     * Start mass delete
+     */
+    function startMassDelete() {
+        console.log('Starting mass delete AJAX request');
+        
+        $.ajax({
+            url: caAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'start_mass_delete',
+                nonce: caAdmin.nonce
+            },
+            success: function(response) {
+                console.log('Mass delete AJAX response:', response);
+                
+                if (response.success) {
+                    // Hide controls and show progress
+                    $('#ca-mass-delete-controls').hide();
+                    $('#ca-mass-delete-progress').show();
+                    
+                    // Start monitoring
+                    massDeleteRunning = true;
+                    monitorMassDeleteProgress();
+                    
+                } else {
+                    alert('Failed to start mass deletion: ' + response.data);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.log('Mass delete AJAX error:', xhr, status, error);
+                alert('Request failed: ' + error);
+            }
+        });
+    }
+    
+    /**
+     * Stop mass delete
+     */
+    function stopMassDelete() {
+        $.ajax({
+            url: caAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'stop_mass_delete',
+                nonce: caAdmin.nonce
+            },
+            success: function(response) {
+                massDeleteRunning = false;
+                clearInterval(massDeleteInterval);
+                
+                $('#ca-mass-delete-controls').show();
+                $('#ca-mass-delete-progress').hide();
+                
+                alert('Mass deletion stopped');
+                location.reload();
+            }
+        });
+    }
+    
+    /**
+     * Monitor mass delete progress
+     */
+    function monitorMassDeleteProgress() {
+        if (!massDeleteRunning) {
+            return;
+        }
+        
+        massDeleteInterval = setInterval(function() {
+            checkMassDeleteStatus();
+        }, 1000); // Check every 1 second for quicker feedback
+    }
+    
+    /**
+     * Check mass delete status
+     */
+    function checkMassDeleteStatus() {
+        $.ajax({
+            url: caAdmin.ajaxUrl,
+            type: 'POST',
+            data: {
+                action: 'get_mass_delete_status',
+                nonce: caAdmin.nonce
+            },
+            success: function(response) {
+                if (response.success && response.data.running) {
+                    // Update progress display
+                    const data = response.data;
+                    const progressPercent = Math.round(data.progress_percent || 0);
+                    
+                    $('#ca-mass-delete-progress .ca-progress-fill').css('width', progressPercent + '%');
+                    $('#ca-mass-delete-text').text(
+                        'Deleted: ' + data.processed + ' / ' + data.total + ' posts'
+                    );
+                    
+                    massDeleteRunning = true;
+                    
+                    if (!$('#ca-mass-delete-progress').is(':visible')) {
+                        $('#ca-mass-delete-controls').hide();
+                        $('#ca-mass-delete-progress').show();
+                    }
+                    
+                } else if (response.success && response.data.completed) {
+                    // Mass delete completed
+                    massDeleteRunning = false;
+                    clearInterval(massDeleteInterval);
+                    
+                    const data = response.data;
+                    alert(
+                        'Mass deletion completed!\n' +
+                        'Total deleted: ' + data.success + '\n' +
+                        'Errors: ' + data.errors
+                    );
+                    
+                    location.reload();
+                    
+                } else {
+                    // No mass delete running
+                    massDeleteRunning = false;
+                    clearInterval(massDeleteInterval);
+                    
+                    $('#ca-mass-delete-controls').show();
+                    $('#ca-mass-delete-progress').hide();
                 }
             }
         });

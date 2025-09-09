@@ -251,6 +251,121 @@ function clear_processing_queue() {
     delete_option('content_automation_queue');
 }
 
+// =============================================================================
+// MASS DELETE FUNCTIONS
+// =============================================================================
+
+/**
+ * Start mass delete session
+ */
+function start_mass_delete_session($total_posts) {
+    $mass_delete_data = array(
+        'total' => $total_posts,
+        'processed' => 0,
+        'success' => 0,
+        'errors' => 0,
+        'started' => current_time('mysql'),
+        'current_post' => null,
+        'status' => 'running'
+    );
+    
+    set_transient('content_automation_mass_delete_active', $mass_delete_data, HOUR_IN_SECONDS);
+    return true;
+}
+
+/**
+ * Update mass delete progress
+ */
+function update_mass_delete_progress($processed, $success, $errors, $current_post_id = null) {
+    $mass_delete_data = get_transient('content_automation_mass_delete_active');
+    
+    if ($mass_delete_data) {
+        $mass_delete_data['processed'] = $processed;
+        $mass_delete_data['success'] = $success;
+        $mass_delete_data['errors'] = $errors;
+        $mass_delete_data['current_post'] = $current_post_id;
+        $mass_delete_data['last_update'] = current_time('mysql');
+        
+        set_transient('content_automation_mass_delete_active', $mass_delete_data, HOUR_IN_SECONDS);
+    }
+}
+
+/**
+ * End mass delete session
+ */
+function end_mass_delete_session() {
+    $mass_delete_data = get_transient('content_automation_mass_delete_active');
+    
+    if ($mass_delete_data) {
+        $mass_delete_data['status'] = 'completed';
+        $mass_delete_data['completed'] = current_time('mysql');
+        
+        // Store in completed deletions for history
+        $completed_deletions = get_option('content_automation_completed_deletions', array());
+        
+        // Keep only last 5 deletion runs
+        if (count($completed_deletions) >= 5) {
+            array_shift($completed_deletions);
+        }
+        
+        $completed_deletions[] = $mass_delete_data;
+        update_option('content_automation_completed_deletions', $completed_deletions);
+    }
+    
+    delete_transient('content_automation_mass_delete_active');
+}
+
+/**
+ * Get mass delete queue
+ */
+function get_mass_delete_queue() {
+    return get_option('content_automation_mass_delete_queue', array());
+}
+
+/**
+ * Add posts to mass delete queue
+ */
+function add_to_mass_delete_queue($post_ids) {
+    $queue = get_mass_delete_queue();
+    
+    // Add new post IDs, avoiding duplicates
+    foreach ((array) $post_ids as $post_id) {
+        if (!in_array($post_id, $queue)) {
+            $queue[] = (int) $post_id;
+        }
+    }
+    
+    update_option('content_automation_mass_delete_queue', $queue);
+    return count($queue);
+}
+
+/**
+ * Get next post from mass delete queue
+ */
+function get_next_from_mass_delete_queue() {
+    $queue = get_mass_delete_queue();
+    
+    if (empty($queue)) {
+        return false;
+    }
+    
+    $next_post_id = array_shift($queue);
+    update_option('content_automation_mass_delete_queue', $queue);
+    
+    return $next_post_id;
+}
+
+/**
+ * Clear mass delete queue
+ */
+function clear_mass_delete_queue() {
+    delete_option('content_automation_mass_delete_queue');
+}
+
+// =============================================================================
+// END MASS DELETE FUNCTIONS
+// =============================================================================
+
 /**
  * Get processing statistics
  */

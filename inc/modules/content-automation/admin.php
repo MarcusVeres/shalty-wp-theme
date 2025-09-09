@@ -278,6 +278,43 @@ function content_automation_admin_page() {
             <?php endif; ?>
         </div>
         
+        <!-- Mass Delete Section -->
+        <div class="card ca-danger-zone">
+            <h2 style="color: #d63638;">⚠️ Mass Delete All Posts</h2>           
+            <?php 
+            $mass_delete_status = get_transient('content_automation_mass_delete_active');
+            if ($mass_delete_status): ?>
+                <div class="notice notice-info">
+                    <p><strong>Mass deletion is currently running...</strong></p>
+                    <div id="ca-mass-delete-progress">
+                        <div class="ca-progress-bar">
+                            <div class="ca-progress-fill" style="width: <?php echo ($mass_delete_status['processed'] / $mass_delete_status['total'] * 100); ?>%"></div>
+                        </div>
+                        <p id="ca-mass-delete-text">
+                            Deleted: <?php echo $mass_delete_status['processed']; ?> / <?php echo $mass_delete_status['total']; ?> posts
+                        </p>
+                    </div>
+                    <button type="button" class="button" id="ca-stop-mass-delete">Stop Deletion</button>
+                </div>
+            <?php else: ?>
+                <div id="ca-mass-delete-controls">
+                    <p>This will delete <strong><?php echo $stats['total_posts']; ?> posts</strong> and all their associated featured images.</p>
+                    
+                    <button type="button" class="button button-delete" id="ca-start-mass-delete" style="background: #d63638; border-color: #d63638; color: white;">
+                        Delete All Shaltazar Posts
+                    </button>
+                </div>
+                
+                <div id="ca-mass-delete-progress" style="display: none;">
+                    <div class="ca-progress-bar">
+                        <div class="ca-progress-fill" style="width: 0%"></div>
+                    </div>
+                    <p id="ca-mass-delete-text">Preparing deletion...</p>
+                    <button type="button" class="button" id="ca-stop-mass-delete">Stop Deletion</button>
+                </div>
+            <?php endif; ?>
+        </div>
+        
         <!-- Processing Logs -->
         <div class="card">
             <h2>Recent Activity</h2>
@@ -446,6 +483,15 @@ function content_automation_admin_page() {
         .card h2 {
             margin-top: 0;
         }
+        
+        .ca-danger-zone {
+            border-left: 4px solid #d63638;
+        }
+        
+        .ca-danger-zone h2 {
+            border-bottom: 1px solid #d63638;
+            padding-bottom: 10px;
+        }
     </style>
     <?php
 }
@@ -486,6 +532,7 @@ function content_automation_enqueue_scripts($hook_suffix) {
         'messages' => array(
             'confirm_batch' => 'This will process multiple posts. Continue?',
             'confirm_force' => 'This will overwrite existing content. Are you sure?',
+            'confirm_mass_delete' => 'This will permanently delete ALL Shaltazar posts and their images. This cannot be undone. Are you sure?',
             'processing' => 'Processing...',
             'success' => 'Success!',
             'error' => 'Error occurred',

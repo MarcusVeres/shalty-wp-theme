@@ -333,6 +333,205 @@ function content_automation_stop_batch_process() {
 }
 
 /**
+ * Start mass delete process
+ */
+function content_automation_start_mass_delete() {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['nonce'], 'content_automation_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    // Check permissions
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions');
+    }
+    
+    // Check if mass delete is already running
+    if (get_transient('content_automation_mass_delete_active')) {
+        wp_send_json_error('Mass delete is already running');
+    }
+    
+    // Get all Shaltazar posts
+    $all_posts = get_posts(array(
+        'post_type' => 'shaltazar_post',
+        'post_status' => 'any',
+        'numberposts' => -1,
+        'fields' => 'ids'
+    ));
+    
+    if (empty($all_posts)) {
+        wp_send_json_error('No Shaltazar posts found to delete');
+    }
+    
+    // Clear existing queue and add all posts for deletion
+    clear_mass_delete_queue();
+    add_to_mass_delete_queue($all_posts);
+    
+    // Start mass delete session
+    start_mass_delete_session(count($all_posts));
+    
+    content_automation_log("Started mass deletion of " . count($all_posts) . " Shaltazar posts", 'info');
+    
+    wp_send_json_success(array(
+        'message' => 'Mass deletion started',
+        'total_posts' => count($all_posts)
+    ));
+}
+
+/**
+ * Get mass delete status and process next post
+ */
+function content_automation_get_mass_delete_status() {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['nonce'], 'content_automation_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    $mass_delete_status = get_transient('content_automation_mass_delete_active');
+    $queue_length = count(get_mass_delete_queue());
+    
+    if (!$mass_delete_status) {
+        wp_send_json_success(array(
+            'running' => false,
+            'message' => 'No mass deletion active'
+        ));
+        return;
+    }
+    
+    // Process next post if queue has items
+    if ($mass_delete_status['status'] === 'running' && $queue_length > 0) {
+        $next_post_id = get_next_from_mass_delete_queue();
+        
+        if ($next_post_id) {
+            $delete_result = delete_single_shaltazar_post($next_post_id);
+            
+            // Update progress
+            $success_count = $mass_delete_status['success'];
+            $error_count = $mass_delete_status['errors'];
+            
+            if ($delete_result['success']) {
+                $success_count++;
+            } else {
+                $error_count++;
+            }
+            
+            update_mass_delete_progress(
+                $mass_delete_status['processed'] + 1,
+                $success_count,
+                $error_count,
+                $next_post_id
+            );
+            
+            // Check if we're done
+            $remaining = count(get_mass_delete_queue());
+            if ($remaining === 0) {
+                end_mass_delete_session();
+                
+                content_automation_log("Mass deletion completed: {$success_count} deleted, {$error_count} errors", 'info');
+                
+                wp_send_json_success(array(
+                    'running' => false,
+                    'completed' => true,
+                    'message' => 'Mass deletion completed',
+                    'total' => $mass_delete_status['total'],
+                    'processed' => $mass_delete_status['processed'] + 1,
+                    'success' => $success_count,
+                    'errors' => $error_count
+                ));
+                return;
+            }
+        }
+    }
+    
+    // Return current status
+    if ($mass_delete_status['status'] === 'running') {
+        wp_send_json_success(array(
+            'running' => true,
+            'total' => $mass_delete_status['total'],
+            'processed' => $mass_delete_status['processed'],
+            'success' => $mass_delete_status['success'],
+            'errors' => $mass_delete_status['errors'],
+            'current_post' => $mass_delete_status['current_post'],
+            'remaining' => $queue_length,
+            'progress_percent' => $mass_delete_status['total'] > 0 ? ($mass_delete_status['processed'] / $mass_delete_status['total'] * 100) : 0
+        ));
+    }
+}
+
+/**
+ * Stop mass delete process
+ */
+function content_automation_stop_mass_delete() {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['nonce'], 'content_automation_nonce')) {
+        wp_send_json_error('Security check failed');
+    }
+    
+    // Check permissions
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Insufficient permissions');
+    }
+    
+    // Stop mass delete
+    end_mass_delete_session();
+    clear_mass_delete_queue();
+    
+    content_automation_log("Mass deletion stopped by user", 'info');
+    
+    wp_send_json_success(array(
+        'message' => 'Mass deletion stopped'
+    ));
+}
+
+/**
+ * Delete a single Shaltazar post and its featured image
+ */
+function delete_single_shaltazar_post($post_id) {
+    $post = get_post($post_id);
+    
+    if (!$post || $post->post_type !== 'shaltazar_post') {
+        return array(
+            'success' => false,
+            'error' => 'Invalid post or wrong post type'
+        );
+    }
+    
+    $post_title = $post->post_title;
+    
+    // Get featured image before deleting post
+    $featured_image_id = get_post_thumbnail_id($post_id);
+    
+    // Delete the post (this will force delete)
+    $deleted = wp_delete_post($post_id, true);
+    
+    if (!$deleted) {
+        content_automation_log("Failed to delete post: {$post_title} (ID: {$post_id})", 'error', $post_id);
+        return array(
+            'success' => false,
+            'error' => 'Failed to delete post'
+        );
+    }
+    
+    // Delete featured image if it exists
+    if ($featured_image_id) {
+        $image_deleted = wp_delete_attachment($featured_image_id, true);
+        if ($image_deleted) {
+            content_automation_log("Deleted post and featured image: {$post_title} (ID: {$post_id})", 'success');
+        } else {
+            content_automation_log("Deleted post but failed to delete featured image: {$post_title} (ID: {$post_id})", 'error');
+        }
+    } else {
+        content_automation_log("Deleted post: {$post_title} (ID: {$post_id}) - no featured image", 'success');
+    }
+    
+    return array(
+        'success' => true,
+        'message' => "Deleted post: {$post_title}",
+        'had_featured_image' => (bool) $featured_image_id
+    );
+}
+
+/**
  * Test Google Docs access
  */
 function content_automation_test_docs_access() {
@@ -423,6 +622,9 @@ add_action('wp_ajax_process_single_post', 'content_automation_process_single_pos
 add_action('wp_ajax_start_batch_process', 'content_automation_start_batch_process');
 add_action('wp_ajax_get_batch_status', 'content_automation_get_batch_status');
 add_action('wp_ajax_stop_batch_process', 'content_automation_stop_batch_process');
+add_action('wp_ajax_start_mass_delete', 'content_automation_start_mass_delete');
+add_action('wp_ajax_get_mass_delete_status', 'content_automation_get_mass_delete_status');
+add_action('wp_ajax_stop_mass_delete', 'content_automation_stop_mass_delete');
 add_action('wp_ajax_test_docs_access', 'content_automation_test_docs_access');
 add_action('wp_ajax_test_youtube_access', 'content_automation_test_youtube_access');
 add_action('wp_ajax_clear_logs', 'content_automation_clear_logs');
