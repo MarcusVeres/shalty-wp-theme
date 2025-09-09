@@ -60,8 +60,8 @@ function sync_theme_to_categories($post_id, $force_update = false) {
         );
     }
     
-    // Assign category to post (append to existing categories)
-    $result = wp_set_post_categories($post_id, array($category['term_id']), true);
+    // Assign category to post - TRUE to append to existing categories - FALSE to replace them 
+    $result = wp_set_post_categories($post_id, array($category['term_id']), false);
     
     if (is_wp_error($result)) {
         $error = 'Failed to assign category: ' . $result->get_error_message();
